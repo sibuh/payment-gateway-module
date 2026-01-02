@@ -93,12 +93,6 @@ func ErrorHandler(err error, c echo.Context) {
 		message = fmt.Sprint(e.Message)
 		internalErr = e.Internal
 
-	// Context timeout / cancel
-	// case context.DeadlineExceeded:
-	// 	code = http.StatusRequestTimeout
-	// 	message = "request timeout"
-	// 	internalErr = err
-
 	default:
 		internalErr = err
 	}

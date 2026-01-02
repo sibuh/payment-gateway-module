@@ -2,12 +2,12 @@ version: "2"
 
 sql:
   - engine: "postgresql"
-    schema: "../internal/repo/schema"
-    queries: "../internal/repo/query"
+    schema: "internal/repo/schema"
+    queries: "internal/repo/query"
     gen:
       go:
         package: "db"
-        out: "../internal/repo/db"
+        out: "internal/repo/db"
         sql_package: "pgx/v5"
         emit_interface: false
         emit_json_tags: true
