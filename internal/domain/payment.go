@@ -2,9 +2,11 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/google/uuid"
 )
 
 type PaymentStatus string
@@ -16,7 +18,7 @@ const (
 )
 
 type Payment struct {
-	ID        string        `json:"id"`
+	ID        uuid.UUID     `json:"id"`
 	Amount    float64       `json:"amount" validate:"required,gt=0"`
 	Currency  string        `json:"currency" validate:"required,oneof=ETB USD"`
 	Reference string        `json:"reference" validate:"required"`
@@ -38,20 +40,44 @@ func (pr PaymentRequest) Validate() error {
 }
 
 type PaymentRepo interface {
-	Create(ctx context.Context, payment *Payment) error
-	GetByID(ctx context.Context, id string) (*Payment, error)
-	GetByReference(ctx context.Context, reference string) (*Payment, error)
-	UpdateStatus(ctx context.Context, id string, status PaymentStatus) error
+	CreatePayment(ctx context.Context, payment *Payment) error
+	GetPaymentByID(ctx context.Context, id string) (*Payment, error)
+	GetPaymentByReference(ctx context.Context, reference string) (*Payment, error)
+	UpdatePaymentStatus(ctx context.Context, id string, status PaymentStatus) error
 	// For row-level locking and idempotency
-	GetByIDWithLock(ctx context.Context, id string) (*Payment, error)
+	GetPaymentByIDWithLock(ctx context.Context, id string) (*Payment, error)
 }
 
 type PaymentService interface {
-	Create(ctx context.Context, payment *Payment) (*Payment, error)
-	GetByID(ctx context.Context, id string) (*Payment, error)
-	Process(ctx context.Context, id string) error
+	CreatePayment(ctx context.Context, payment *Payment) (*Payment, error)
+	GetPaymentByID(ctx context.Context, id string) (*Payment, error)
+	ProcessPayment(ctx context.Context, id string) error
 }
 
 type MessagePublisher interface {
 	PublishPaymentCreated(ctx context.Context, paymentID string) error
+}
+
+type Error struct {
+	Code        string                 `json:"code"`
+	Message     string                 `json:"message"`
+	Description string                 `json:"description"`
+	Args        map[string]interface{} `json:"params"`
+	Err         error                  `json:"err"`
+}
+
+func (e Error) Error() string {
+	return fmt.Sprintf("Message:%s: Description:%s Cause:%s", e.Code, e.Message, e.Err.Error())
+}
+
+func (e Error) ErrorCode() string {
+	return e.Code
+}
+
+func (e Error) ErrorArgs() map[string]interface{} {
+	return e.Args
+}
+
+func (e Error) Unwrap() error {
+	return e.Err
 }

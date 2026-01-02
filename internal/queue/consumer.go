@@ -78,7 +78,7 @@ func (c *RabbitMQConsumer) Start(ctx context.Context) error {
 			paymentID := string(d.Body)
 			fmt.Printf("Received a message: %s\n", paymentID)
 
-			err := c.useCase.Process(ctx, paymentID)
+			err := c.useCase.ProcessPayment(ctx, paymentID)
 			if err != nil {
 				fmt.Printf("Error processing payment %s: %v\n", paymentID, err)
 				// In a real-world scenario, we might want to retry or move to a DLQ

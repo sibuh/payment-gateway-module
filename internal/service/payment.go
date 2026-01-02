@@ -2,44 +2,69 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
 	"pgm/internal/domain"
+	"pgm/internal/repo/db"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/shopspring/decimal"
 )
 
 type PaymentService struct {
-	paymentRepo domain.PaymentRepo
-	publisher   domain.MessagePublisher
+	queries   *db.Queries
+	publisher domain.MessagePublisher
 }
 
-func NewPaymentService(repo domain.PaymentRepo, publisher domain.MessagePublisher) domain.PaymentService {
+func NewPaymentService(q *db.Queries, publisher domain.MessagePublisher) domain.PaymentService {
 	return &PaymentService{
-		paymentRepo: repo,
-		publisher:   publisher,
+		queries:   q,
+		publisher: publisher,
 	}
 }
 
-func (u *PaymentService) Create(ctx context.Context, p *domain.Payment) (*domain.Payment, error) {
+func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.Payment) (*domain.Payment, error) {
 	// Check if reference already exists
-	existing, err := u.paymentRepo.GetByReference(ctx, p.Reference)
+	existing, err := u.queries.GetPaymentByReference(ctx, p.Reference)
 	if err != nil {
-		return nil, err
+		return nil, domain.Error{
+			Code:        "INTERNAL_ERROR",
+			Message:     "Failed to check for existing payment",
+			Description: err.Error(),
+			Err:         err,
+		}
 	}
-	if existing != nil {
-		return nil, errors.New("payment with this reference already exists")
+	if existing.ID != uuid.Nil {
+		return nil, domain.Error{
+			Code:        "DUPLICATE_REFERENCE",
+			Message:     "Payment with this reference already exists",
+			Description: "A payment with the same reference has already been created",
+		}
 	}
 
 	p.Status = domain.StatusPending
-	err = u.paymentRepo.Create(ctx, p)
+	payment, err := u.queries.CreatePayment(ctx, db.CreatePaymentParams{
+		Amount:    decimal.NewFromFloat(p.Amount),
+		Currency:  p.Currency,
+		Reference: p.Reference,
+		Status:    db.Paymentstatus(p.Status),
+		CreatedAt: pgtype.Timestamptz{Time: p.CreatedAt, Valid: true},
+		UpdatedAt: pgtype.Timestamptz{Time: p.UpdatedAt, Valid: true},
+	})
 	if err != nil {
-		return nil, err
+		return nil, domain.Error{
+			Code:        "INTERNAL_ERROR",
+			Message:     "Failed to create payment",
+			Description: err.Error(),
+			Err:         err,
+		}
 	}
 
 	// Publish to RabbitMQ
-	err = u.publisher.PublishPaymentCreated(ctx, p.ID)
+	err = u.publisher.PublishPaymentCreated(ctx, payment.ID.String())
 	if err != nil {
 		// In a real-world scenario, we might want to use an outbox pattern here
 		// to ensure the message is eventually published.
@@ -49,22 +74,61 @@ func (u *PaymentService) Create(ctx context.Context, p *domain.Payment) (*domain
 	return p, nil
 }
 
-func (u *PaymentService) GetByID(ctx context.Context, id string) (*domain.Payment, error) {
-	return u.paymentRepo.GetByID(ctx, id)
+func (u *PaymentService) GetPaymentByID(ctx context.Context, id string) (*domain.Payment, error) {
+	// parse payment id
+	paymentID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid payment ID format: %w", err)
+	}
+
+	payment, err := u.queries.GetPaymentByID(ctx, paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.Payment{
+		ID:        payment.ID,
+		Amount:    payment.Amount.InexactFloat64(),
+		Currency:  payment.Currency,
+		Reference: payment.Reference,
+		Status:    domain.PaymentStatus(payment.Status),
+		CreatedAt: payment.CreatedAt.Time,
+		UpdatedAt: payment.UpdatedAt.Time,
+	}, nil
 }
 
-func (u *PaymentService) Process(ctx context.Context, id string) error {
-	// Use row-level locking to prevent race conditions
-	p, err := u.paymentRepo.GetByIDWithLock(ctx, id)
+func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
+	// Parse payment id
+	paymentID, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return domain.Error{
+			Code:        "INVALID_PAYMENT_ID",
+			Message:     "Invalid payment ID format",
+			Description: "The provided payment ID is not a valid UUID format",
+			Err:         err,
+		}
 	}
-	if p == nil {
-		return errors.New("payment not found")
+
+	// Use row-level locking to prevent race conditions
+	p, err := u.queries.GetPaymentByIDWithLock(ctx, paymentID)
+	if err != nil {
+		return domain.Error{
+			Code:        "DATABASE_ERROR",
+			Message:     "Failed to fetch payment",
+			Description: "Error occurred while retrieving payment information",
+			Err:         err,
+		}
+	}
+	if p.ID == uuid.Nil {
+		return domain.Error{
+			Code:        "PAYMENT_NOT_FOUND",
+			Message:     "Payment not found",
+			Description: "The specified payment could not be found",
+		}
 	}
 
 	// Idempotency check: only process if PENDING
-	if p.Status != domain.StatusPending {
+	if string(p.Status) != string(domain.StatusPending) {
 		fmt.Printf("payment %s already processed with status %s\n", id, p.Status)
 		return nil
 	}
@@ -77,9 +141,17 @@ func (u *PaymentService) Process(ctx context.Context, id string) error {
 		newStatus = domain.StatusFailed
 	}
 
-	err = u.paymentRepo.UpdateStatus(ctx, id, newStatus)
+	_, err = u.queries.UpdatePaymentStatus(ctx, db.UpdatePaymentStatusParams{
+		ID:     uuid.MustParse(id),
+		Status: db.Paymentstatus(newStatus),
+	})
 	if err != nil {
-		return err
+		return domain.Error{
+			Code:        "DATABASE_ERROR",
+			Message:     "Failed to update payment status",
+			Description: "Error occurred while updating payment status in the database",
+			Err:         err,
+		}
 	}
 
 	fmt.Printf("payment %s processed with status %s\n", id, newStatus)

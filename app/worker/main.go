@@ -6,27 +6,27 @@ import (
 	"os"
 	"os/signal"
 	rabbitmq "pgm/internal/queue"
-	postgres "pgm/internal/repo"
-	database "pgm/internal/repo/init"
+	"pgm/internal/repo"
+	"pgm/internal/repo/db"
 	service "pgm/internal/service"
 	"syscall"
 )
 
 func main() {
 	// Database
-	db, err := database.NewPostgresDB()
+	pool, err := repo.NewPool(context.Background(), "")
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer pool.Close()
 
 	// Repository
-	repo := postgres.NewPaymentPostgresRepository(db)
+	queries := db.New(pool)
 
 	// UseCase
 	// Worker doesn't need to publish messages, so we can pass nil for publisher
 	// or a mock if needed. In our case, Process doesn't use publisher.
-	uc := service.NewPaymentService(repo, nil)
+	uc := service.NewPaymentService(queries, nil)
 
 	// RabbitMQ Consumer
 	consumer, err := rabbitmq.NewRabbitMQConsumer(uc)
