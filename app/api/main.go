@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"pgm/internal/domain"
 	pmt "pgm/internal/handler/payment"
 	q "pgm/internal/queue"
 	"pgm/internal/repo"
@@ -79,6 +80,7 @@ func main() {
 		Timeout:      time.Minute,
 		ErrorMessage: "Request timeout",
 	}))
+	e.HTTPErrorHandler = domain.ErrorHandler
 	g := e.Group("/v1")
 	srv := &http.Server{
 		Addr:         ":8080",

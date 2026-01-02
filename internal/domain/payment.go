@@ -3,10 +3,12 @@ package domain
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 type PaymentStatus string
@@ -80,4 +82,79 @@ func (e Error) ErrorArgs() map[string]interface{} {
 
 func (e Error) Unwrap() error {
 	return e.Err
+}
+
+type ErrorResponse struct {
+	Code        int            `json:"code"`
+	Message     string         `json:"message"`
+	Description string         `json:"description,omitempty"`
+	Params      map[string]any `json:"params,omitempty"`
+}
+
+func ErrorHandler(err error, c echo.Context) {
+	var (
+		code        = http.StatusInternalServerError
+		message     = "internal server error"
+		description = ""
+		params      map[string]interface{}
+		internalErr error
+	)
+
+	switch e := err.(type) {
+
+	// Your custom error
+	case Error:
+		code = e.Code
+		message = e.Message
+		description = e.Description
+		params = e.Args
+		internalErr = e.Err
+
+	// Echo HTTP error
+	case *echo.HTTPError:
+		code = e.Code
+		message = fmt.Sprint(e.Message)
+		internalErr = e.Internal
+
+	// Context timeout / cancel
+	// case context.DeadlineExceeded:
+	// 	code = http.StatusRequestTimeout
+	// 	message = "request timeout"
+	// 	internalErr = err
+
+	default:
+		internalErr = err
+	}
+
+	//LOG INTERNAL ERROR
+	if internalErr != nil {
+		c.Logger().Errorf(
+			"error=%v code=%d message=%s params=%v",
+			internalErr,
+			code,
+			message,
+			params,
+		)
+	} else {
+		c.Logger().Errorf(
+			"error=%v code=%d message=%s params=%v",
+			err,
+			code,
+			message,
+			params,
+		)
+	}
+
+	// Response already sent?
+	if c.Response().Committed {
+		return
+	}
+
+	// Write safe response
+	_ = c.JSON(code, ErrorResponse{
+		Code:        code,
+		Message:     message,
+		Description: description,
+		Params:      params,
+	})
 }

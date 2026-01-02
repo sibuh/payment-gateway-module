@@ -13,6 +13,17 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const checkExistence = `-- name: CheckExistence :one
+SELECT EXISTS(SELECT 1 FROM payments WHERE reference = $1) AS exists
+`
+
+func (q *Queries) CheckExistence(ctx context.Context, reference string) (bool, error) {
+	row := q.db.QueryRow(ctx, checkExistence, reference)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createPayment = `-- name: CreatePayment :one
 INSERT INTO payments (amount, currency, reference)
 		VALUES ($1, $2, $3)

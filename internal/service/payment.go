@@ -30,7 +30,7 @@ func NewPaymentService(q *db.Queries, publisher domain.MessagePublisher) domain.
 func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.PaymentRequest) (*domain.Payment, error) {
 	// Check if reference already exists
 
-	existing, err := u.queries.GetPaymentByReference(ctx, p.Reference)
+	exists, err := u.queries.CheckExistence(ctx, p.Reference)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.Error{
@@ -41,11 +41,13 @@ func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.PaymentReq
 			}
 		}
 	}
-	if existing.ID != uuid.Nil {
+	if exists {
 		return nil, domain.Error{
 			Code:        409,
 			Message:     "Payment with this reference already exists",
 			Description: "A payment with the same reference has already been created",
+			Err:         fmt.Errorf("payment with reference %s already exists", p.Reference),
+			Args:        map[string]interface{}{"reference": p.Reference},
 		}
 	}
 
