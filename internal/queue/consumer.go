@@ -76,11 +76,10 @@ func (c *RabbitMQConsumer) Start(ctx context.Context) error {
 	go func() {
 		for d := range msgs {
 			paymentID := string(d.Body)
-			fmt.Printf("Received a message: %s\n", paymentID)
-
 			err := c.svc.ProcessPayment(ctx, paymentID)
 			if err != nil {
 				fmt.Printf("Error processing payment %s: %v\n", paymentID, err)
+				// TODO: Implement proper error handling - retry logic or DLQ
 				// In a real-world scenario, we might want to retry or move to a DLQ
 				// For now, we'll just nack without requeue if it's a fatal error,
 				// or requeue if it's transient.

@@ -36,7 +36,8 @@ func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.PaymentReq
 			return nil, domain.NewError(
 				500,
 				"Failed to check for existing payment",
-				"An unexpected error occurred while checking for existing payment", err, nil)
+				"An unexpected error occurred while checking for existing payment", err,
+				map[string]interface{}{"PaymentRequest": p})
 		}
 	}
 	if exists {
@@ -45,7 +46,7 @@ func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.PaymentReq
 			"Payment with this reference already exists",
 			"A payment with the same reference has already been created",
 			fmt.Errorf("payment with reference %s already exists", p.Reference),
-			map[string]interface{}{"reference": p.Reference},
+			map[string]interface{}{"PaymentRequest": p},
 		)
 	}
 
@@ -60,7 +61,7 @@ func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.PaymentReq
 			"Failed to create payment",
 			err.Error(),
 			err,
-			nil,
+			map[string]interface{}{"PaymentRequest": p},
 		)
 	}
 
@@ -92,7 +93,7 @@ func (u *PaymentService) GetPaymentByID(ctx context.Context, id string) (*domain
 			"Invalid payment ID format",
 			"The provided payment ID is not a valid UUID format",
 			err,
-			nil,
+			map[string]interface{}{"PaymentID": id},
 		)
 	}
 
@@ -103,7 +104,7 @@ func (u *PaymentService) GetPaymentByID(ctx context.Context, id string) (*domain
 			"Failed to fetch payment",
 			"Error occurred while retrieving payment information",
 			err,
-			nil,
+			map[string]interface{}{"PaymentID": id},
 		)
 	}
 
@@ -127,7 +128,7 @@ func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
 			"Invalid payment ID format",
 			"The provided payment ID is not a valid UUID format",
 			err,
-			nil,
+			map[string]interface{}{"PaymentID": id},
 		)
 	}
 
@@ -139,7 +140,7 @@ func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
 			"Failed to fetch payment",
 			"Error occurred while retrieving payment information",
 			err,
-			nil,
+			map[string]interface{}{"PaymentID": id},
 		)
 	}
 	if p.ID == uuid.Nil {
@@ -148,7 +149,7 @@ func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
 			"Payment not found",
 			"The specified payment could not be found",
 			nil,
-			nil,
+			map[string]interface{}{"PaymentID": id},
 		)
 	}
 
@@ -182,7 +183,7 @@ func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
 			"Failed to update payment status",
 			"Error occurred while updating payment status in the database",
 			err,
-			nil,
+			map[string]interface{}{"PaymentID": id, "NewStatus": newStatus, "OldStatus": p.Status, "Payment": p},
 		)
 	}
 

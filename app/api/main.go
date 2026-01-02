@@ -26,28 +26,7 @@ import (
 
 func main() {
 	// Database
-	dbUser := os.Getenv("DB_USER")
-	if dbUser == "" {
-		dbUser = "root"
-	}
-	dbHost := os.Getenv("DB_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-	dbPort := os.Getenv("DB_PORT")
-	if dbPort == "" {
-		dbPort = "5433"
-	}
-	dbName := os.Getenv("DB_NAME")
-	if dbName == "" {
-		dbName = "postgres"
-	}
-	dbPassword := os.Getenv("DB_PASSWORD")
-	if dbPassword == "" {
-		dbPassword = "password"
-	}
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
-	log.Printf("Connecting to database with DSN: %s", dsn)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"))
 	pool, err := repo.NewPool(context.Background(), dsn)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
@@ -55,7 +34,7 @@ func main() {
 	defer pool.Close()
 
 	// Run migrations
-	if err := runMigrations("file:///app/internal/repo/schema", dbName, dsn); err != nil {
+	if err := runMigrations("file:///app/internal/repo/schema", os.Getenv("DB_NAME"), dsn); err != nil {
 		log.Fatalf("failed to run migrations: %v", err)
 	}
 

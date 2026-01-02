@@ -27,14 +27,18 @@ func NewRabbitMQPublisher() (domain.MessagePublisher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
+	queueName := os.Getenv("MESSAGE_QUEUE")
+	if queueName == "" {
+		return nil, fmt.Errorf("MESSAGE_QUEUE environment variable not set")
+	}
 
 	q, err := ch.QueueDeclare(
-		"payment_processing", // name
-		true,                 // durable
-		false,                // delete when unused
-		false,                // exclusive
-		false,                // no-wait
-		nil,                  // arguments
+		queueName, // name
+		true,      // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to declare a queue: %w", err)
