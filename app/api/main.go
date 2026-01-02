@@ -3,17 +3,19 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
+	"net/http"
 	"os"
-	http "pgm/internal/handler/payment"
-	rabbitmq "pgm/internal/queue"
+	pmt "pgm/internal/handler/payment"
+	q "pgm/internal/queue"
+	"pgm/internal/repo"
+	"pgm/internal/repo/db"
 	"pgm/internal/service"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-
-	"pgm/internal/repo"
-	"pgm/internal/repo/db"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -23,19 +25,41 @@ import (
 
 func main() {
 	// Database
-	pool, err := repo.NewPool(context.Background(), "")
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		dbUser = "root"
+	}
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		dbPort = "5433"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "postgres"
+	}
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		dbPassword = "password"
+	}
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
+	log.Printf("Connecting to database with DSN: %s", dsn)
+	pool, err := repo.NewPool(context.Background(), dsn)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 	defer pool.Close()
 
 	// Run migrations
-	if err := runMigrations("", "", ""); err != nil {
+	if err := runMigrations("file:///app/internal/repo/schema", dbName, dsn); err != nil {
 		log.Fatalf("failed to run migrations: %v", err)
 	}
 
 	// RabbitMQ Publisher
-	publisher, err := rabbitmq.NewRabbitMQPublisher()
+	publisher, err := q.NewRabbitMQPublisher()
 	if err != nil {
 		log.Fatalf("failed to connect to rabbitmq: %v", err)
 	}
@@ -51,17 +75,23 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
+		Timeout:      time.Minute,
+		ErrorMessage: "Request timeout",
+	}))
 	g := e.Group("/v1")
+	srv := &http.Server{
+		Addr:         ":8080",
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
 	// Handlers
-	http.NewPaymentHandler(g, uc)
+	pmt.NewPaymentHandler(g, uc)
 
 	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	e.Logger.Fatal(e.Start(":" + port))
+	e.StartServer(srv)
 }
 
 // RunMigrations automatically applies migrations on startup.

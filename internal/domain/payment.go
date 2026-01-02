@@ -49,7 +49,7 @@ type PaymentRepo interface {
 }
 
 type PaymentService interface {
-	CreatePayment(ctx context.Context, payment *Payment) (*Payment, error)
+	CreatePayment(ctx context.Context, pr *PaymentRequest) (*Payment, error)
 	GetPaymentByID(ctx context.Context, id string) (*Payment, error)
 	ProcessPayment(ctx context.Context, id string) error
 }
@@ -59,7 +59,7 @@ type MessagePublisher interface {
 }
 
 type Error struct {
-	Code        string                 `json:"code"`
+	Code        int                    `json:"code"`
 	Message     string                 `json:"message"`
 	Description string                 `json:"description"`
 	Args        map[string]interface{} `json:"params"`
@@ -67,10 +67,10 @@ type Error struct {
 }
 
 func (e Error) Error() string {
-	return fmt.Sprintf("Message:%s: Description:%s Cause:%s", e.Code, e.Message, e.Err.Error())
+	return fmt.Sprintf("Message:%d: Description:%s Cause:%s", e.Code, e.Message, e.Err.Error())
 }
 
-func (e Error) ErrorCode() string {
+func (e Error) ErrorCode() int {
 	return e.Code
 }
 

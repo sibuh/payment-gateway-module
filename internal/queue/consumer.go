@@ -14,10 +14,10 @@ type RabbitMQConsumer struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
 	queue   string
-	useCase domain.PaymentService
+	svc     domain.PaymentService
 }
 
-func NewRabbitMQConsumer(useCase domain.PaymentService) (*RabbitMQConsumer, error) {
+func NewRabbitMQConsumer(svc domain.PaymentService) (*RabbitMQConsumer, error) {
 	url := os.Getenv("RABBITMQ_URL")
 	conn, err := amqp.Dial(url)
 	if err != nil {
@@ -55,7 +55,7 @@ func NewRabbitMQConsumer(useCase domain.PaymentService) (*RabbitMQConsumer, erro
 		conn:    conn,
 		channel: ch,
 		queue:   q.Name,
-		useCase: useCase,
+		svc:     svc,
 	}, nil
 }
 
@@ -78,7 +78,7 @@ func (c *RabbitMQConsumer) Start(ctx context.Context) error {
 			paymentID := string(d.Body)
 			fmt.Printf("Received a message: %s\n", paymentID)
 
-			err := c.useCase.ProcessPayment(ctx, paymentID)
+			err := c.svc.ProcessPayment(ctx, paymentID)
 			if err != nil {
 				fmt.Printf("Error processing payment %s: %v\n", paymentID, err)
 				// In a real-world scenario, we might want to retry or move to a DLQ

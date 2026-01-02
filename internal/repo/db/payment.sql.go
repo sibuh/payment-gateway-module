@@ -14,29 +14,19 @@ import (
 )
 
 const createPayment = `-- name: CreatePayment :one
-INSERT INTO payments (amount, currency, reference, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO payments (amount, currency, reference)
+		VALUES ($1, $2, $3)
 		RETURNING id, amount, currency, reference, status, created_at, updated_at
 `
 
 type CreatePaymentParams struct {
-	Amount    decimal.Decimal    `json:"amount"`
-	Currency  string             `json:"currency"`
-	Reference string             `json:"reference"`
-	Status    Paymentstatus      `json:"status"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Amount    decimal.Decimal `json:"amount"`
+	Currency  string          `json:"currency"`
+	Reference string          `json:"reference"`
 }
 
 func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, createPayment,
-		arg.Amount,
-		arg.Currency,
-		arg.Reference,
-		arg.Status,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-	)
+	row := q.db.QueryRow(ctx, createPayment, arg.Amount, arg.Currency, arg.Reference)
 	var i Payment
 	err := row.Scan(
 		&i.ID,

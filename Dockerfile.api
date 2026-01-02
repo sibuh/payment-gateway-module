@@ -7,14 +7,14 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o api cmd/api/main.go
+RUN go build -o api ./app/api
 
 FROM alpine:latest
 
 WORKDIR /app
 
 COPY --from=builder /app/api .
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/internal/repo/schema ./internal/repo/schema
 
 EXPOSE 8080
 

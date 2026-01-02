@@ -1,6 +1,6 @@
 -- name: CreatePayment :one
-INSERT INTO payments (amount, currency, reference, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO payments (amount, currency, reference)
+		VALUES ($1, $2, $3)
 		RETURNING *;
 -- name: GetPaymentByID :one
 SELECT id, amount, currency, reference, status, created_at, updated_at FROM payments WHERE id = $1;

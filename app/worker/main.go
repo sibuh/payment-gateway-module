@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,7 +15,29 @@ import (
 
 func main() {
 	// Database
-	pool, err := repo.NewPool(context.Background(), "")
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		dbUser = "root"
+	}
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		dbPort = "5433"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "postgres"
+	}
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		dbPassword = "password"
+	}
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
+	log.Printf("Connecting to database with DSN: %s", dsn)
+	pool, err := repo.NewPool(context.Background(), dsn)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
