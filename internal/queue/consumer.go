@@ -21,6 +21,7 @@ type RabbitMQConsumer struct {
 	svc         domain.PaymentService
 	retryOpts   []retry.Option
 	maxAttempts uint
+	workerCount int
 }
 
 func NewRabbitMQConsumer(svc domain.PaymentService) (*RabbitMQConsumer, error) {
@@ -70,6 +71,19 @@ func NewRabbitMQConsumer(svc domain.PaymentService) (*RabbitMQConsumer, error) {
 		return nil, fmt.Errorf("invalid RETRY_MAX_DELAY value: %v", err)
 	}
 
+	// Parse worker count
+	workerCountStr := os.Getenv("WORKER_COUNT")
+	if workerCountStr == "" {
+		workerCountStr = "1" // Default to 1 worker if not specified
+	}
+	workerCount, err := strconv.Atoi(workerCountStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid WORKER_COUNT value: %v", err)
+	}
+	if workerCount < 1 {
+		workerCount = 1
+	}
+
 	// Configure retry options
 	retryOpts := []retry.Option{
 		retry.Attempts(uint(attempts)),
@@ -115,9 +129,9 @@ func NewRabbitMQConsumer(svc domain.PaymentService) (*RabbitMQConsumer, error) {
 
 	// Set QoS to ensure fair dispatch among multiple workers
 	err = ch.Qos(
-		1,     // prefetch count
-		0,     // prefetch size
-		false, // global
+		workerCount, // prefetch count
+		0,           // prefetch size
+		false,       // global
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set QoS: %w", err)
@@ -130,6 +144,7 @@ func NewRabbitMQConsumer(svc domain.PaymentService) (*RabbitMQConsumer, error) {
 		svc:         svc,
 		retryOpts:   retryOpts,
 		maxAttempts: uint(attempts),
+		workerCount: workerCount,
 	}, nil
 }
 
@@ -147,47 +162,55 @@ func (c *RabbitMQConsumer) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to register a consumer: %w", err)
 	}
 
-	go func() {
-		for d := range msgs {
-			paymentID := string(d.Body)
+	for i := 0; i < c.workerCount; i++ {
+		workerID := i + 1
+		go func(id int) {
+			log.Printf("Worker %d starting", id)
+			for d := range msgs {
+				paymentID := string(d.Body)
+				log.Printf("Worker %d processing payment %s", id, paymentID)
 
-			// Create a copy of retry options and add the dynamic ones
-			opts := make([]retry.Option, len(c.retryOpts), len(c.retryOpts)+2)
-			copy(opts, c.retryOpts)
+				// Create a copy of retry options and add the dynamic ones
+				opts := make([]retry.Option, len(c.retryOpts), len(c.retryOpts)+2)
+				copy(opts, c.retryOpts)
 
-			// Add dynamic options
-			opts = append(opts,
-				retry.RetryIf(IsRetryable),
-				retry.OnRetry(func(n uint, err error) {
-					log.Printf(
-						"retry %d/%d for payment %s failed: %v",
-						n+1,
-						c.maxAttempts,
-						paymentID,
-						err,
-					)
-				}),
-			)
+				// Add dynamic options
+				opts = append(opts,
+					retry.RetryIf(IsRetryable),
+					retry.OnRetry(func(n uint, err error) {
+						log.Printf(
+							"Worker %d: retry %d/%d for payment %s failed: %v",
+							id,
+							n+1,
+							c.maxAttempts,
+							paymentID,
+							err,
+						)
+					}),
+				)
 
-			err := retry.Do(
-				func() error {
-					return c.svc.ProcessPayment(ctx, paymentID)
-				},
-				opts...,
-			)
+				err := retry.Do(
+					func() error {
+						return c.svc.ProcessPayment(ctx, paymentID)
+					},
+					opts...,
+				)
 
-			if err != nil {
-				log.Printf("payment %s failed permanently: %v", paymentID, err)
+				if err != nil {
+					log.Printf("Worker %d: payment %s failed permanently: %v", id, paymentID, err)
 
-				//Fatal or retries exhausted → send to DLQ
-				_ = d.Nack(false, false)
-				continue
+					//Fatal or retries exhausted → send to DLQ
+					_ = d.Nack(false, false)
+					continue
+				}
+
+				//Success
+				_ = d.Ack(false)
+				log.Printf("Worker %d: payment %s processed successfully", id, paymentID)
 			}
-
-			//Success
-			_ = d.Ack(false)
-		}
-	}()
+			log.Printf("Worker %d stopping", id)
+		}(workerID)
+	}
 
 	log.Println(" [*] Waiting for messages")
 	<-ctx.Done()

@@ -1,6 +1,3 @@
-# Payment Gateway Module
-
-A robust and scalable payment processing system built with Go, Echo framework, and PostgreSQL. This microservice handles payment processing, validation, and status tracking.
 
 ## ✨ Features
 
@@ -14,7 +11,7 @@ A robust and scalable payment processing system built with Go, Echo framework, a
 
 ## 🚀 Prerequisites
 
-- Go 1.20+
+- Go 1.24.0
 - PostgreSQL 13+
 - RabbitMQ 3.8+
 - Docker 
@@ -23,7 +20,7 @@ A robust and scalable payment processing system built with Go, Echo framework, a
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/sibuh/pgm
    cd pgm
    ```
 
@@ -37,30 +34,10 @@ A robust and scalable payment processing system built with Go, Echo framework, a
    go mod download
    ```
 
-4. Run the database migrations:
-   ```bash
-   make migrate-up
-   ```
-
-5. Start the services using Docker Compose:
+4. Start the services using Docker Compose:
    ```bash
    docker-compose up -d
    ```
-
-## 🔧 Environment Variables
-
-| Variable             | Description                          | Default Value                |
-|----------------------|--------------------------------------|------------------------------|
-| `DB_HOST`            | PostgreSQL host                      | `localhost`                  |
-| `DB_PORT`            | PostgreSQL port                      | `5432`                       |
-| `DB_USER`            | Database user                        | `postgres`                   |
-| `DB_PASSWORD`        | Database password                    | `postgres`                   |
-| `DB_NAME`            | Database name                        | `payment_db`                 |
-| `RABBITMQ_URL`       | RabbitMQ connection URL              | `amqp://guest:guest@localhost:5672/` |
-| `API_PORT`           | Port for the API server              | `8080`                       |
-| `RETRY_ATTEMPTS`     | Number of retry attempts             | `3`                          |
-| `RETRY_DELAY`        | Delay between retries                | `1s`                         |
-| `RETRY_MAX_DELAY`    | Maximum delay between retries        | `5s`                         |
 
 ## 📚 API Documentation
 
@@ -97,10 +74,7 @@ The project includes Dockerfiles for both the API and worker services. To build 
 
 ```bash
 # Build the containers
-docker-compose build
-
-# Start all services
-docker-compose up -d
+docker-compose up --build -d
 
 # View logs
 docker-compose logs -f
