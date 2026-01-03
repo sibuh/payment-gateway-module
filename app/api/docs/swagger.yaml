@@ -1,0 +1,151 @@
+basePath: /v1
+definitions:
+  domain.Payment:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      currency:
+        enum:
+        - ETB
+        - USD
+        type: string
+      id:
+        type: string
+      reference:
+        type: string
+      status:
+        $ref: '#/definitions/domain.PaymentStatus'
+      updated_at:
+        type: string
+    required:
+    - amount
+    - currency
+    - reference
+    type: object
+  domain.PaymentRequest:
+    properties:
+      amount:
+        type: number
+      currency:
+        enum:
+        - ETB
+        - USD
+        type: string
+      reference:
+        type: string
+    required:
+    - amount
+    - currency
+    - reference
+    type: object
+  domain.PaymentStatus:
+    enum:
+    - PENDING
+    - SUCCESS
+    - FAILED
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusSuccess
+    - StatusFailed
+  http.ErrorResponse:
+    properties:
+      body:
+        description: 'in: body'
+        properties:
+          code:
+            type: integer
+          description:
+            type: string
+          message:
+            type: string
+          params: {}
+        type: object
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a payment gateway module with Swagger documentation.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Payment Gateway Module API
+  version: "1.0"
+paths:
+  /v1/payments:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new payment with the provided details
+      parameters:
+      - description: Payment details
+        in: body
+        name: payment
+        required: true
+        schema:
+          $ref: '#/definitions/domain.PaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Payment created successfully
+          schema:
+            $ref: '#/definitions/domain.Payment'
+        "400":
+          description: Invalid request body or validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: Payment with this reference already exists
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Create a new payment
+      tags:
+      - payments
+  /v1/payments/{id}:
+    get:
+      description: Retrieves payment details by payment ID
+      parameters:
+      - description: Payment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment found
+          schema:
+            $ref: '#/definitions/domain.Payment'
+        "400":
+          description: Invalid payment ID format
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Payment not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get payment by ID
+      tags:
+      - payments
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
