@@ -13,17 +13,21 @@ import (
 	"pgm/internal/repo/db"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 )
 
 type PaymentService struct {
 	queries   db.Querier
+	pool      *pgxpool.Pool
 	publisher domain.MessagePublisher
 }
 
-func NewPaymentService(q db.Querier, publisher domain.MessagePublisher) domain.PaymentService {
+func NewPaymentService(q db.Querier, pool *pgxpool.Pool, publisher domain.MessagePublisher) domain.PaymentService {
 	return &PaymentService{
 		queries:   q,
+		pool:      pool,
 		publisher: publisher,
 	}
 }
@@ -35,7 +39,7 @@ func (u *PaymentService) CreatePayment(ctx context.Context, p *domain.PaymentReq
 			http.StatusBadRequest,
 			"validation failed",
 			"payment request validation failed",
-			err,	
+			err,
 			map[string]interface{}{"req": p},
 		)
 	}
@@ -142,9 +146,24 @@ func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
 			map[string]interface{}{"PaymentID": id},
 		)
 	}
+	// create transaction object to track the processing
+	tx, err := u.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+	if err != nil {
+		return domain.NewError(
+			500,
+			"Failed to begin transaction",
+			"Error occurred while starting database transaction",
+			err,
+			map[string]interface{}{"PaymentID": id},
+		)
+	}
+	defer tx.Rollback(ctx)
+	qtx := db.New(tx)
 
 	// Use row-level locking to prevent race conditions
-	p, err := u.queries.GetPaymentByIDWithLock(ctx, paymentID)
+	p, err := qtx.GetPaymentByIDWithLock(ctx, paymentID)
 	if err != nil {
 		return domain.NewError(
 			500,
@@ -184,7 +203,7 @@ func (u *PaymentService) ProcessPayment(ctx context.Context, id string) error {
 		newStatus = domain.StatusFailed
 	}
 
-	_, err = u.queries.UpdatePaymentStatus(ctx, db.UpdatePaymentStatusParams{
+	_, err = qtx.UpdatePaymentStatus(ctx, db.UpdatePaymentStatusParams{
 		ID:     uuid.MustParse(id),
 		Status: db.Paymentstatus(newStatus),
 	})

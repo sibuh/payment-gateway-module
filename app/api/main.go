@@ -71,7 +71,7 @@ func main() {
 	queries := db.New(pool)
 
 	// service
-	uc := service.NewPaymentService(queries, publisher)
+	uc := service.NewPaymentService(queries, pool, publisher)
 
 	// Echo
 	e := echo.New()

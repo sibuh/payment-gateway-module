@@ -79,7 +79,7 @@ func NewRabbitMQConsumer(svc domain.PaymentService) (*RabbitMQConsumer, error) {
 	case "fixed":
 		retryOpts = append(retryOpts, retry.Delay(delay))
 	case "backoff":
-		retryOpts = append(retryOpts, 
+		retryOpts = append(retryOpts,
 			retry.Delay(delay),
 			retry.DelayType(retry.BackOffDelay),
 		)
@@ -204,5 +204,14 @@ func IsRetryable(err error) bool {
 		return false
 	}
 
-	return true
+	e, ok := err.(domain.Error)
+
+	if !ok {
+		return false
+	}
+
+	if e.Code == 500 {
+		return true
+	}
+	return false
 }

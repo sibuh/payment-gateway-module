@@ -91,12 +91,6 @@ To run all tests:
 go test -v ./...
 ```
 
-To run tests with coverage:
-
-```bash
-go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
-```
-
 ## 🐳 Docker Support
 
 The project includes Dockerfiles for both the API and worker services. To build and run the containers:
@@ -116,7 +110,8 @@ docker-compose logs -f
 
 ```
 .
-├── api/                  # API server entry point
+├── api/                  # api server entry point
+|── worker/               # worker server entry point
 |                        
 ├── internal/
 │   ├── domain/           # Domain models and interfaces

@@ -28,7 +28,7 @@ func main() {
 	// UseCase
 	// Worker doesn't need to publish messages, so we can pass nil for publisher
 	// or a mock if needed. In our case, Process doesn't use publisher.
-	uc := service.NewPaymentService(queries, nil)
+	uc := service.NewPaymentService(queries, pool, nil)
 
 	// RabbitMQ Consumer
 	consumer, err := rabbitmq.NewRabbitMQConsumer(uc)
